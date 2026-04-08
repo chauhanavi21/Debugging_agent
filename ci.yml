@@ -33,6 +33,12 @@ jobs:
           cd sdk
           python test_sdk.py
 
+      - name: Run integration tests (LangChain + CrewAI)
+        run: |
+          pip install langchain langchain-core langchain-community langchain-openai crewai
+          cd sdk
+          python test_integrations.py
+
   # ── Server tests ───────────────────────────────────────────────────────────
   server:
     name: Server (Python 3.12)
