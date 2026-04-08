@@ -210,6 +210,82 @@ Returns per-span comparison: duration delta, status changes, spans only in one r
 
 ---
 
+## Framework integrations
+
+### LangChain (zero code changes)
+
+```python
+from agentlens import AgentLens
+from agentlens.integrations.langchain import AgentLensCallback
+from langchain_core.runnables import RunnableConfig
+
+lens = AgentLens(endpoint="http://localhost:7430")
+cb = AgentLensCallback(lens, run_name="my_rag_chain", tags=["prod"])
+
+# Pass once — every chain, LLM call, tool, and retriever inside is traced
+result = chain.invoke({"input": "What is CRDT?"}, config=RunnableConfig(callbacks=[cb]))
+```
+
+Or use the one-liner:
+
+```python
+import agentlens
+
+cb = agentlens.patch_langchain(endpoint="http://localhost:7430")
+# cb is a ready-to-use AgentLensCallback — pass via RunnableConfig
+```
+
+**What gets traced automatically:**
+- Every chain invocation (kind: `agent` at root, `chain` for nested)
+- Every LLM / chat model call with token usage extracted (kind: `llm`)
+- Every tool invocation with inputs and outputs (kind: `tool`)
+- Every retriever call with query and returned doc count (kind: `retrieval`)
+- Errors propagate to the span with full exception type + message
+
+### CrewAI
+
+```python
+from agentlens import AgentLens
+from agentlens.integrations.langchain import AgentLensCrewCallback
+from crewai import Crew
+
+lens = AgentLens(endpoint="http://localhost:7430")
+cb = AgentLensCrewCallback(lens, crew_name="research_crew")
+
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, writing_task],
+    step_callback=cb.on_step,   # traces every agent step
+    task_callback=cb.on_task,   # traces every task completion
+)
+
+result = crew.kickoff()
+cb.finish(outputs={"result": result.raw})  # exports the full run
+```
+
+### Custom / any framework
+
+The decorator API works with anything:
+
+```python
+from agentlens import AgentLens, SpanKind
+
+lens = AgentLens(endpoint="http://localhost:7430")
+
+@lens.trace("my_agent", tags=["prod"])
+def my_agent(query: str) -> str:
+    docs = retrieve(query)
+    return generate(docs, query)
+
+@lens.span("retrieve", kind=SpanKind.RETRIEVAL)
+def retrieve(query: str) -> list: ...
+
+@lens.llm_call("generate", model="gpt-4o-mini")
+def generate(docs: list, query: str) -> str: ...
+```
+
+---
+
 ## Architecture
 
 ```
